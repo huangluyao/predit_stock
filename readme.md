@@ -5,7 +5,7 @@
 模型放在[百度云盘](https://pan.baidu.com/s/1cDlHTkdyNb_5bcu-PKSnCw), 提取码: huu2。 可以通过运行pred.py来加载。
 ### 2. 执行pred.py
 ```
-    python pred.py
+python pred.py
 ```
 
 # 模型训练
