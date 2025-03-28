@@ -176,7 +176,8 @@ class GPT(nn.Module):
         else:
             logits = self.lm_head(x[:, [-1], :])
             logits = torch.split(logits, self.config.vocab_size, dim=-1)
-            return logits
+            vol_prob = self.vol_head(x[:, [-1]])
+            return logits, vol_prob
 
     @torch.no_grad()
     def generate(self, x_values, x_vol_rates, max_new_tokens=30, temperature=1.0, top_k=None, use_max=True):
@@ -191,23 +192,24 @@ class GPT(nn.Module):
             x_vol_rates = x_vol_rates if x_values.shape[1] <= block_size else x_vol_rates[:, -block_size:]
             # 预测股价
             logits, vol_prob = self(x_values, x_vol_rates)
-
+            logits = [res[:, -1] for res in logits]
             next_values = []
             max_prob_list = []
             for res in logits:
                 # 从top_k的情况下，随机选择一个结果
                 if top_k is not None:
                     v, _ = torch.topk(res, min(top_k, res.size(-1)))
-                    logits[logits < v[:, [-1]]] = -float('Inf')
+                    res[res < v[..., [-1]]] = -float('Inf')
                 probs = F.softmax(res, dim=-1)
                 if use_max:
                     max_prob, idx_next = torch.max(probs, dim=-1, keepdim=True)
                     max_prob_list.append(max_prob.item())
                 else:
                     # 温度参数平滑结果
-                    logits = [res[:, -1, :] / temperature for res in logits]
+                    res = res / temperature
+                    res = F.softmax(res, dim=-1)
                     # 采样分布
-                    idx_next = torch.multinomial(probs, num_samples=1)
+                    idx_next = torch.multinomial(res, num_samples=1)
                 next_values.append(idx_next)
             next_values = torch.stack(next_values)
             next_values = next_values.permute(1, 2, 0)
